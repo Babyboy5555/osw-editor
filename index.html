@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="OSW Editor">
+<meta name="description" content="แก้เสียงในไฟล์ .osw ของ GTA San Andreas Mobile และสร้างไฟล์ .idx ใหม่ให้ตรงกัน ทำงานในเครื่อง ไม่อัปโหลดไฟล์">
+<title>OSW Sound Editor</title>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column tool. Header, file card, search row, bank accordions (rows: play / name+size / replace), fixed export bar at the bottom. */
+:root {
+  --bg: #edf1f0;
+  --surface: #ffffff;
+  --surface-2: #f3f6f5;
+  --ink: #142120;
+  --muted: #566664;
+  --line: #d2dbd9;
+  --accent: #0a6b66;
+  --accent-ink: #ffffff;
+  --mod: #a85a00;
+  --mod-bg: #fdf0dc;
+  --err: #b3261e;
+  --ok: #1f7a3f;
+  --f-display: 'Chakra Petch', 'IBM Plex Sans Thai', system-ui, sans-serif;
+  --f-body: 'IBM Plex Sans Thai', system-ui, -apple-system, 'Thonburi', sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1514; --surface: #152120; --surface-2: #1b2928; --ink: #e3ecea; --muted: #9bb0ad; --line: #2a3b39;
+    --accent: #47c7bd; --accent-ink: #06201e; --mod: #f2ad55; --mod-bg: #2e2314; --err: #ff8a80; --ok: #7bd88f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1514; --surface: #152120; --surface-2: #1b2928; --ink: #e3ecea; --muted: #9bb0ad; --line: #2a3b39;
+  --accent: #47c7bd; --accent-ink: #06201e; --mod: #f2ad55; --mod-bg: #2e2314; --err: #ff8a80; --ok: #7bd88f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 120px; display: flex; flex-direction: column; gap: 16px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+button, input, label { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); }
+
+header { display: flex; flex-direction: column; gap: 6px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand svg { flex: none; color: var(--accent); }
+h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 28px; letter-spacing: .01em; line-height: 1.1; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 60ch; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 17px; letter-spacing: .02em; }
+.label { font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.small { min-height: 40px; padding: 0 12px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.vh:focus-visible + .btn { outline: 2px solid var(--accent); outline-offset: 2px; }
+.link { background: none; border: 0; padding: 4px 0; min-height: 28px; color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.fine { margin: 0; font-size: 13px; color: var(--muted); }
+
+.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; counter-increment: s; }
+.steps li::before { content: counter(s); font-family: var(--f-display); font-weight: 700; font-size: 14px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--accent); color: var(--accent); }
+.steps b { font-weight: 600; }
+code, .k { font-family: var(--f-mono); font-size: .9em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+
+.fileline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.fname { font-family: var(--f-mono); font-weight: 500; font-size: 16px; overflow-wrap: anywhere; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: 13px; }
+.stats b { color: var(--ink); font-family: var(--f-display); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.search { flex: 1 1 200px; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; }
+.chip { min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid var(--line); background: var(--surface); font-weight: 500; font-size: 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--mod-bg); border-color: var(--mod); color: var(--mod); font-weight: 600; }
+
+.banks { display: flex; flex-direction: column; gap: 8px; }
+details.bank { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+details.bank > summary { list-style: none; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+details.bank > summary::-webkit-details-marker { display: none; }
+details.bank > summary::before { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+details.bank[open] > summary::before { transform: rotate(45deg); }
+.bname { font-family: var(--f-display); font-weight: 600; font-size: 16px; letter-spacing: .02em; }
+.bcount { margin-left: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 10px; background: var(--mod-bg); color: var(--mod); white-space: nowrap; }
+ul.sounds { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row.mod { background: var(--mod-bg); }
+.play { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--accent); display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.play svg { width: 16px; height: 16px; fill: currentColor; }
+.play .i-stop { display: none; }
+.play[data-playing="1"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.play[data-playing="1"] .i-play { display: none; }
+.play[data-playing="1"] .i-stop { display: block; }
+.info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nm { font-family: var(--f-mono); font-weight: 500; font-size: 14px; overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.acts { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+
+.result { border-color: var(--ok); }
+.result h2 { color: var(--ok); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13.5px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.err { color: var(--err); font-weight: 500; margin: 0; }
+
+details.info-box > summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+details.info-box p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1px solid var(--line); }
+.bar-in { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+.bar-txt { min-width: 0; font-size: 14px; }
+.bar-txt b { font-family: var(--f-display); font-size: 18px; font-variant-numeric: tabular-nums; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 30; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 6px; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+@media (prefers-reduced-motion: reduce) { details.bank > summary::before { transition: none; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true" fill="currentColor"><rect x="2" y="13" width="4" height="8" rx="1"/><rect x="9" y="7" width="4" height="20" rx="1"/><rect x="16" y="2" width="4" height="30" rx="1"/><rect x="23" y="9" width="4" height="16" rx="1"/><rect x="30" y="14" width="3" height="6" rx="1"/></svg>
+      <h1>OSW Sound Editor</h1>
+    </div>
+    <p class="lede">แก้เสียงในไฟล์ <span class="mono">.osw</span> ของ GTA San Andreas Mobile แล้วสร้างไฟล์ <span class="mono">.idx</span> ใหม่ให้ตรงกันอัตโนมัติ</p>
+  </header>
+
+  <section class="card" id="startCard">
+    <h2>เลือกไฟล์ .osw</h2>
+    <div class="row-actions">
+      <input class="vh" type="file" id="oswInput">
+      <label class="btn primary" for="oswInput">เลือกไฟล์ .osw</label>
+      <button class="btn" id="demoBtn" type="button">ลองด้วยไฟล์ตัวอย่าง</button>
+    </div>
+    <p class="fine">เช่น <span class="mono">GENRL.osw</span>, <span class="mono">PAIN_A.osw</span>, <span class="mono">FEET.osw</span> ไฟล์ไม่ถูกอัปโหลดไปไหน ทุกอย่างอ่านและแก้ในเครื่องของคุณ ส่วนไฟล์ตัวอย่างเป็นเสียงบี๊บที่สร้างในเครื่อง ไม่ใช่เสียงจากเกม</p>
+    <p class="err" id="loadErr" hidden></p>
+    <ol class="steps">
+      <li><div><b>เลือกไฟล์ .osw</b> ไม่ต้องเลือกไฟล์ <span class="mono">.idx</span> เพราะหน้านี้สร้างให้ใหม่</div></li>
+      <li><div><b>ฟังเสียงเดิม</b> แล้วกด “เปลี่ยนเสียง” เลือกไฟล์เสียงของคุณ (mp3, wav, m4a ฯลฯ)</div></li>
+      <li><div><b>ดาวน์โหลดชุดไฟล์</b> ได้ไฟล์ zip ที่มี <span class="mono">.osw</span> กับ <span class="mono">.idx</span> ใหม่คู่กัน แล้วแตกใน Files</div></li>
+    </ol>
+    <details class="info-box">
+      <summary>ไฟล์ .osw กับ .idx คืออะไร</summary>
+      <p><span class="mono">.osw</span> คือไฟล์ ZIP แบบไม่บีบอัด ข้างในมีโฟลเดอร์ <span class="mono">Bank_001/</span>, <span class="mono">Bank_002/</span> ... และไฟล์ <span class="mono">sound_001.mp3</span> (บางตัวเป็น wav) ส่วน <span class="mono">.idx</span> คือตารางที่บอกชื่อ ตำแหน่ง และขนาดของแต่ละเสียงในไฟล์ <span class="mono">.osw</span> เมื่อเปลี่ยนเสียงแล้วขนาดไฟล์เปลี่ยน ตำแหน่งของเสียงที่อยู่ถัดไปจะเลื่อน จึงต้องสร้าง <span class="mono">.idx</span> ใหม่ทุกครั้ง และวางทับทั้งสองไฟล์พร้อมกัน</p>
+    </details>
+  </section>
+
+  <section class="card" id="fileCard" hidden>
+    <div class="fileline">
+      <div>
+        <div class="label">ไฟล์ที่เปิดอยู่</div>
+        <div class="fname" id="fName"></div>
+      </div>
+      <div class="row-actions">
+        <input class="vh" type="file" id="oswInput2">
+        <label class="btn small" for="oswInput2">เปลี่ยนไฟล์</label>
+      </div>
+    </div>
+    <div class="stats" id="fStats"></div>
+    <p class="err" id="loadErr2" hidden></p>
+  </section>
+
+  <section class="card result" id="result" hidden></section>
+
+  <div class="toolbar" id="toolbar" hidden>
+    <input class="search" id="search" type="search" inputmode="search" placeholder="ค้นหา เช่น 12 หรือ sound_003" autocomplete="off" aria-label="ค้นหาเสียง">
+    <button class="chip" id="modOnly" type="button" aria-pressed="false">เฉพาะที่แก้แล้ว</button>
+  </div>
+
+  <div class="banks" id="banks"></div>
+  <p class="empty" id="noMatch" hidden>ไม่พบเสียงที่ตรงกับตัวกรอง</p>
+</div>
+
+<input class="vh" type="file" id="replaceInput" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.caf,.flac" tabindex="-1">
+
+<div class="bar" id="bar" hidden>
+  <div class="bar-in">
+    <div class="bar-txt" id="barTxt"></div>
+    <button class="btn primary" id="exportBtn" type="button" disabled>ดาวน์โหลดชุดไฟล์</button>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const enc = new TextEncoder(), dec = new TextDecoder();
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtSize = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
+const extOf = n => { const m = /\.([^./]+)$/.exec(n); return m ? m[1].toLowerCase() : ''; };
+
+/* ---------- CRC32 ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+
+function dosNow() { const d = new Date(); return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() }; }
+
+/* ---------- ZIP (stored only) ---------- */
+function parseZip(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  if (buf.byteLength < 22 || dv.getUint32(0, true) !== 0x04034b50) throw new Error('ไฟล์นี้ไม่ใช่ .osw ถ้าเป็นไฟล์ .idx ให้เลือกไฟล์ .osw ตัวที่ใหญ่กว่าแทน');
+  let e = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 22 - 65535); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('อ่านโครงสร้างของไฟล์ไม่ได้ ไฟล์อาจไม่ครบหรือเสียหาย');
+  const count = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('โครงสร้างของไฟล์เสียหาย');
+    const m = { madeBy: dv.getUint16(p + 4, true), vneed: dv.getUint16(p + 6, true), flags: dv.getUint16(p + 8, true), method: dv.getUint16(p + 10, true), time: dv.getUint16(p + 12, true), date: dv.getUint16(p + 14, true), crc: dv.getUint32(p + 16, true), usize: dv.getUint32(p + 24, true) };
+    const nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+    m.intAttr = dv.getUint16(p + 36, true); m.extAttr = dv.getUint32(p + 38, true);
+    const lho = dv.getUint32(p + 42, true);
+    m.name = dec.decode(u8.subarray(p + 46, p + 46 + nl));
+    p += 46 + nl + el + cl;
+    m.isDir = m.name.endsWith('/');
+    if (!m.isDir && m.method !== 0) throw new Error('ไฟล์นี้ถูกบีบอัด หน้านี้รองรับเฉพาะ .osw แบบไม่บีบอัด');
+    const ds = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    m.data = m.isDir ? new Uint8Array(0) : u8.subarray(ds, ds + m.usize);
+    out.push(m);
+  }
+  return out;
+}
+
+function writeZip(list) {
+  const now = dosNow();
+  const items = list.map(e => {
+    const nameB = enc.encode(e.name), data = e.data || new Uint8Array(0);
+    return { e, nameB, data, crc: e.isDir ? 0 : (e.crc != null ? e.crc : crc32(data)) };
+  });
+  let total = 22;
+  for (const it of items) total += 30 + it.nameB.length + it.data.length + 46 + it.nameB.length;
+  const out = new Uint8Array(total), dv = new DataView(out.buffer);
+  const files = []; let p = 0;
+  for (const it of items) {
+    const e = it.e; it.lho = p;
+    const t = e.time != null ? e.time : now.time, d = e.date != null ? e.date : now.date;
+    dv.setUint32(p, 0x04034b50, true); dv.setUint16(p + 4, e.vneed || 20, true); dv.setUint16(p + 6, (e.flags || 0) & ~8, true); dv.setUint16(p + 8, 0, true);
+    dv.setUint16(p + 10, t, true); dv.setUint16(p + 12, d, true); dv.setUint32(p + 14, it.crc, true);
+    dv.setUint32(p + 18, it.data.length, true); dv.setUint32(p + 22, it.data.length, true);
+    dv.setUint16(p + 26, it.nameB.length, true); dv.setUint16(p + 28, 0, true);
+    out.set(it.nameB, p + 30); p += 30 + it.nameB.length;
+    if (!e.isDir) files.push({ nameB: it.nameB, off: p, size: it.data.length });
+    out.set(it.data, p); p += it.data.length;
+    it.t = t; it.d = d;
+  }
+  const cdOff = p;
+  for (const it of items) {
+    const e = it.e;
+    dv.setUint32(p, 0x02014b50, true); dv.setUint16(p + 4, e.madeBy != null ? e.madeBy : 20, true); dv.setUint16(p + 6, e.vneed || 20, true);
+    dv.setUint16(p + 8, (e.flags || 0) & ~8, true); dv.setUint16(p + 10, 0, true); dv.setUint16(p + 12, it.t, true); dv.setUint16(p + 14, it.d, true);
+    dv.setUint32(p + 16, it.crc, true); dv.setUint32(p + 20, it.data.length, true); dv.setUint32(p + 24, it.data.length, true);
+    dv.setUint16(p + 28, it.nameB.length, true); dv.setUint16(p + 30, 0, true); dv.setUint16(p + 32, 0, true); dv.setUint16(p + 34, 0, true);
+    dv.setUint16(p + 36, e.intAttr || 0, true); dv.setUint32(p + 38, e.extAttr || 0, true); dv.setUint32(p + 42, it.lho, true);
+    out.set(it.nameB, p + 46); p += 46 + it.nameB.length;
+  }
+  dv.setUint32(p, 0x06054b50, true); dv.setUint16(p + 8, items.length, true); dv.setUint16(p + 10, items.length, true);
+  dv.setUint32(p + 12, p - cdOff, true); dv.setUint32(p + 16, cdOff, true);
+  return { bytes: out, files };
+}
+
+function buildIdx(files) {
+  let n = 4; for (const f of files) n += 10 + f.nameB.length;
+  const out = new Uint8Array(n), dv = new DataView(out.buffer);
+  dv.setUint32(0, files.length, true); let p = 4;
+  for (const f of files) { dv.setUint32(p, f.off, true); dv.setUint32(p + 4, f.size, true); dv.setUint16(p + 8, f.nameB.length, true); out.set(f.nameB, p + 10); p += 10 + f.nameB.length; }
+  return out;
+}
+
+/* ---------- audio helpers ---------- */
+function sniff(u8) {
+  if (u8.length > 12 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46 && u8[8] === 0x57 && u8[9] === 0x41 && u8[10] === 0x56 && u8[11] === 0x45) return 'wav';
+  if (u8.length > 4 && ((u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33) || (u8[0] === 0xFF && (u8[1] & 0xE0) === 0xE0))) return 'mp3';
+  return null;
+}
+function isPcm16Wav(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength); let p = 12;
+  while (p + 8 <= u8.length) {
+    const id = String.fromCharCode(u8[p], u8[p + 1], u8[p + 2], u8[p + 3]), sz = dv.getUint32(p + 4, true);
+    if (id === 'fmt ') return dv.getUint16(p + 8, true) === 1 && dv.getUint16(p + 22, true) === 16;
+    p += 8 + sz + (sz & 1);
+  }
+  return false;
+}
+function wavBytes(samples, rate) {
+  const n = samples.length, out = new Uint8Array(44 + n * 2), dv = new DataView(out.buffer);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) out[o + i] = s.charCodeAt(i); };
+  str(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  str(36, 'data'); dv.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, samples[i])); dv.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+  return out;
+}
+async function decodeToWav(u8) {
+  const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!AC) throw new Error('เบราว์เซอร์นี้แปลงไฟล์เสียงไม่ได้ ลองใช้ไฟล์ mp3 หรือ wav');
+  const ctx = new AC(1, 1, 22050);
+  const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+  const buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+  const len = buf.length, mono = new Float32Array(len);
+  for (let c = 0; c < buf.numberOfChannels; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += ch[i] / buf.numberOfChannels; }
+  return wavBytes(mono, buf.sampleRate);
+}
+
+/* ---------- state ---------- */
+let entries = [], banks = [], rows = new Map(), srcName = '', srcSize = 0, loaded = false;
+let dlPromise = Promise.resolve(null), dlReady = false, dlOk = false;
+let replaceTarget = -1, audio = null, playingIdx = -1, curUrl = null, toastT = 0, busy = false;
+
+try { dlPromise = Promise.resolve(window.claude && window.claude.use ? window.claude.use('downloads') : null).then(d => { dlReady = true; dlOk = !!d; updateBar(); return d || null; }, () => { dlReady = true; dlOk = false; updateBar(); return null; }); } catch (e) { dlReady = true; }
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3800); }
+function showErr(msg) { const a = $('#loadErr'), b = $('#loadErr2'); [a, b].forEach(el => { el.textContent = msg || ''; el.hidden = !msg; }); }
+
+/* ---------- loading ---------- */
+async function loadBuffer(buf, name) {
+  stop();
+  const list = parseZip(buf);
+  entries = list.map(m => Object.assign(m, { origName: m.name, origData: m.data, origCrc: m.crc, modified: false, note: '' }));
+  srcName = name.replace(/^[0-9a-f]{8}-/i, ''); srcSize = buf.byteLength; loaded = true;
+  banks = []; const map = new Map();
+  entries.forEach((e, i) => {
+    if (e.isDir) return;
+    const slash = e.name.indexOf('/'), key = slash > 0 ? e.name.slice(0, slash) : '(root)';
+    let b = map.get(key); if (!b) { const num = /bank_0*(\d+)/i.exec(key); b = { key, num: num ? Number(num[1]) : null, idx: [] }; map.set(key, b); banks.push(b); }
+    b.idx.push(i);
+  });
+  $('#result').hidden = true; $('#search').value = ''; modOnly = false; $('#modOnly').setAttribute('aria-pressed', 'false');
+  renderAll();
+  showErr('');
+}
+async function loadFile(file) {
+  if (!file) return;
+  showErr('');
+  try { await loadBuffer(await file.arrayBuffer(), file.name); }
+  catch (err) { showErr(err.message || 'เปิดไฟล์ไม่ได้'); }
+}
+
+/* ---------- render ---------- */
+const PLAY = '<svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg><svg class="i-stop" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>';
+const fileOf = e => e.name.slice(e.name.indexOf('/') + 1);
+function rowHTML(i) {
+  const e = entries[i], mod = e.modified;
+  return `<li class="row${mod ? ' mod' : ''}" data-i="${i}">
+    <button class="play" type="button" data-act="play" aria-label="เล่น ${esc(e.name)}"${playingIdx === i ? ' data-playing="1"' : ''}>${PLAY}</button>
+    <div class="info"><div class="nm">${esc(fileOf(e))}</div>
+      <div class="meta">${mod ? '<span class="pill">แทนที่แล้ว</span>' : ''}<span>${fmtSize(e.data.length)}</span>${mod && e.note ? `<span>${esc(e.note)}</span>` : ''}</div></div>
+    <div class="acts"><button class="btn small" type="button" data-act="replace">เปลี่ยนเสียง</button>${mod ? '<button class="link" type="button" data-act="revert">คืนค่าเดิม</button>' : ''}</div>
+  </li>`;
+}
+function summaryHTML(b) {
+  const m = b.idx.filter(i => entries[i].modified).length;
+  return `<span class="bname">${esc(b.key)}</span>${m ? `<span class="pill">แก้ ${m}</span>` : ''}<span class="bcount">${b.idx.length} เสียง</span>`;
+}
+function renderAll() {
+  $('#startCard').hidden = true; $('#fileCard').hidden = false; $('#toolbar').hidden = false; $('#bar').hidden = false;
+  $('#fName').textContent = srcName;
+  const files = entries.filter(e => !e.isDir).length;
+  $('#fStats').innerHTML = `<span><b>${files}</b> เสียง</span><span><b>${banks.length}</b> bank</span><span><b>${fmtSize(srcSize)}</b></span>`;
+  const host = $('#banks'); host.innerHTML = '';
+  rows = new Map();
+  const frag = document.createDocumentFragment();
+  banks.forEach((b, bi) => {
+    const d = document.createElement('details'); d.className = 'bank'; if (bi === 0) d.open = true;
+    d.innerHTML = `<summary>${summaryHTML(b)}</summary><ul class="sounds">${b.idx.map(rowHTML).join('')}</ul>`;
+    b.el = d; frag.appendChild(d);
+  });
+  host.appendChild(frag);
+  host.querySelectorAll('li.row').forEach(li => rows.set(Number(li.dataset.i), li));
+  applyFilter(); updateBar();
+}
+function refreshRow(i) {
+  const old = rows.get(i); if (!old) return;
+  const t = document.createElement('template'); t.innerHTML = rowHTML(i).trim();
+  const li = t.content.firstElementChild; old.replaceWith(li); rows.set(i, li);
+  const b = banks.find(x => x.idx.includes(i)); if (b) b.el.querySelector('summary').innerHTML = summaryHTML(b);
+  applyFilter(); updateBar();
+}
+
+/* ---------- filter ---------- */
+let modOnly = false;
+function applyFilter() {
+  const q = $('#search').value.trim().toLowerCase(), digits = /^\d+$/.test(q) ? Number(q) : null;
+  let shown = 0;
+  banks.forEach(b => {
+    let any = false;
+    b.idx.forEach(i => {
+      const e = entries[i]; let ok = !(modOnly && !e.modified);
+      if (ok && q) ok = e.name.toLowerCase().includes(q) || (digits !== null && b.num === digits);
+      const li = rows.get(i); if (li) li.hidden = !ok; if (ok) any = true;
+    });
+    b.el.hidden = !any; if (any) shown++;
+    if ((q || modOnly) && any && !b.el.open) { b.el.open = true; b.el.dataset.auto = '1'; }
+    else if (!q && !modOnly && b.el.dataset.auto === '1') { b.el.open = false; delete b.el.dataset.auto; }
+  });
+  $('#noMatch').hidden = shown > 0 || !loaded;
+}
+
+/* ---------- playback ---------- */
+function stop() {
+  if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+  if (curUrl) { URL.revokeObjectURL(curUrl); curUrl = null; }
+  const prev = playingIdx; playingIdx = -1;
+  const li = rows.get(prev); if (li) { const b = li.querySelector('.play'); if (b) b.removeAttribute('data-playing'); }
+}
+function togglePlay(i) {
+  if (playingIdx === i) { stop(); return; }
+  stop();
+  const e = entries[i], type = extOf(e.name) === 'wav' ? 'audio/wav' : 'audio/mpeg';
+  if (!audio) { audio = new Audio(); audio.addEventListener('ended', stop); }
+  curUrl = URL.createObjectURL(new Blob([e.data], { type }));
+  audio.src = curUrl; playingIdx = i;
+  const b = rows.get(i).querySelector('.play'); b.setAttribute('data-playing', '1');
+  audio.play().catch(() => { stop(); toast('เล่นเสียงนี้ไม่ได้ ลองเปิดเสียงเครื่องแล้วกดอีกครั้ง'); });
+}
+
+/* ---------- replace ---------- */
+async function replaceEntry(i, file) {
+  const e = entries[i];
+  try {
+    let data = new Uint8Array(await file.arrayBuffer()), kind = sniff(data), note = file.name, conv = false;
+    if (kind === 'wav' && !isPcm16Wav(data)) kind = null;
+    if (!kind) { toast('กำลังแปลงเป็น WAV โมโน...'); data = await decodeToWav(data); kind = 'wav'; conv = true; }
+    const stem = e.origName.replace(/\.[^./]+$/, '');
+    e.name = stem + '.' + kind; e.data = data; e.crc = crc32(data); e.modified = true;
+    e.note = file.name + (conv ? ' · แปลงเป็น WAV โมโน' : '') + (extOf(e.origName) !== kind ? ' · เปลี่ยนนามสกุลเป็น .' + kind : '');
+    if (playingIdx === i) stop();
+    refreshRow(i);
+  } catch (err) { toast('ใช้ไฟล์นี้ไม่ได้: ' + (err && err.message ? err.message : 'อ่านไฟล์เสียงไม่ออก')); }
+}
+function revertEntry(i) {
+  const e = entries[i]; if (playingIdx === i) stop();
+  e.name = e.origName; e.data = e.origData; e.crc = e.origCrc; e.modified = false; e.note = '';
+  refreshRow(i);
+}
+
+/* ---------- export ---------- */
+function updateBar() {
+  const n = entries.filter(e => e.modified).length;
+  $('#barTxt').innerHTML = n ? `แก้ไขแล้ว <b>${n}</b> เสียง` : 'ยังไม่ได้แก้ไข';
+  const btn = $('#exportBtn'); btn.disabled = !n || busy;
+  btn.textContent = busy ? 'กำลังสร้างไฟล์...' : 'ดาวน์โหลดชุดไฟล์';
+}
+const stripExt = n => n.replace(/\.osw$/i, '');
+/* Used when the page runs outside Claude (own hosting): share sheet if the browser can share files, otherwise a normal download. */
+async function fallbackSave(blob, name) {
+  try {
+    const f = new File([blob], name, { type: 'application/zip' });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; }
+  } catch (err) {
+    if (err && err.name === 'AbortError') { const e = new Error('cancel'); e.code = 'declined'; throw e; }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+async function exportAll() {
+  if (busy || !loaded) return; busy = true; updateBar(); stop();
+  try {
+    await new Promise(r => setTimeout(r, 30));
+    const osw = writeZip(entries), idx = buildIdx(osw.files);
+    const oswName = srcName, idxName = srcName + '.idx';
+    const pack = writeZip([{ name: oswName, data: osw.bytes }, { name: idxName, data: idx }]);
+    const zipName = stripExt(srcName) + '_edited.zip';
+    const blob = new Blob([pack.bytes], { type: 'application/zip' });
+    const dl = await dlPromise;
+    if (dl) await dl.save({ filename: zipName, data: blob }); else await fallbackSave(blob, zipName);
+    showResult({ zipName, oswName, idxName, oswSize: osw.bytes.length, idxSize: idx.length, count: osw.files.length, changed: entries.filter(e => e.modified).length });
+  } catch (err) {
+    const c = err && err.code;
+    if (c === 'declined') toast('ยกเลิกการบันทึก กดดาวน์โหลดอีกครั้งได้');
+    else if (c === 'rate_limited') toast('รอสักครู่แล้วกดอีกครั้ง');
+    else toast('บันทึกไฟล์ไม่สำเร็จ' + (err && err.message ? ': ' + err.message : ''));
+  } finally { busy = false; updateBar(); }
+}
+function showResult(r) {
+  const el = $('#result');
+  el.innerHTML = `<h2>สร้างไฟล์ใหม่แล้ว</h2>
+    <dl class="kv"><dt>ไฟล์ที่บันทึก</dt><dd class="mono">${esc(r.zipName)}</dd><dt>ข้างใน</dt><dd class="mono">${esc(r.oswName)} (${fmtSize(r.oswSize)})<br>${esc(r.idxName)} (${fmtSize(r.idxSize)})</dd><dt>เสียงทั้งหมด</dt><dd>${r.count} เสียง แก้ ${r.changed} เสียง</dd></dl>
+    <ol class="steps">
+      <li><div>เปิดแอป <b>Files</b> แล้วแตะไฟล์ <span class="mono">${esc(r.zipName)}</span> เพื่อแตก zip</div></li>
+      <li><div>จะได้ไฟล์ <span class="mono">${esc(r.oswName)}</span> กับ <span class="mono">${esc(r.idxName)}</span></div></li>
+      <li><div>วางทับไฟล์ชื่อเดียวกันในโฟลเดอร์เสียงของเกม <b>ทั้งสองไฟล์พร้อมกัน</b> และควรสำรองไฟล์เดิมไว้ก่อน</div></li>
+    </ol>`;
+  el.hidden = false; el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- demo ---------- */
+function demoBuffer() {
+  const list = [];
+  for (let b = 1; b <= 3; b++) {
+    list.push({ name: `Bank_00${b}/`, isDir: true, extAttr: 0x10 });
+    for (let s = 1; s <= 3; s++) {
+      const rate = 16000, n = Math.round(rate * 0.35), f = 300 + b * 110 + s * 60, a = new Float32Array(n);
+      for (let i = 0; i < n; i++) a[i] = Math.sin(2 * Math.PI * f * i / rate) * 0.5 * Math.min(1, i / 400, (n - i) / 1600);
+      list.push({ name: `Bank_00${b}/sound_00${s}.wav`, data: wavBytes(a, rate) });
+    }
+  }
+  return writeZip(list).bytes.buffer;
+}
+
+/* ---------- events ---------- */
+$('#oswInput').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+$('#oswInput2').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+$('#demoBtn').addEventListener('click', () => loadBuffer(demoBuffer(), 'DEMO.osw').catch(err => showErr(err.message)));
+$('#banks').addEventListener('click', ev => {
+  const sum = ev.target.closest('summary'); if (sum) { delete sum.parentElement.dataset.auto; return; }
+  const btn = ev.target.closest('[data-act]'); if (!btn) return;
+  const i = Number(btn.closest('li.row').dataset.i), act = btn.dataset.act;
+  if (act === 'play') togglePlay(i);
+  else if (act === 'revert') revertEntry(i);
+  else if (act === 'replace') { replaceTarget = i; $('#replaceInput').click(); }
+});
+$('#replaceInput').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f && replaceTarget >= 0) replaceEntry(replaceTarget, f); });
+$('#search').addEventListener('input', applyFilter);
+$('#modOnly').addEventListener('click', e => { modOnly = !modOnly; e.currentTarget.setAttribute('aria-pressed', String(modOnly)); applyFilter(); });
+$('#exportBtn').addEventListener('click', exportAll);
+
+})();
+</script>
+</body>
+</html>
